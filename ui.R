@@ -10,13 +10,19 @@ shinyUI(fluidPage(
     # Sidebar with a slider input for number of bins
     sidebarLayout(
         sidebarPanel(
-            selectInput(inputId = "gene", 
+            selectInput(inputId = "gene",
                         label = "Gene name: ", 
                         choices = seed_genes,
                         selected = "SMN1",
                         width = "150px"),
             actionButton(inputId = "search",
-                         label = "Search candidates")
+                         label = "Search candidates"), br(), br(),
+            selectInput(inputId = "geneTypes", 
+                        label = "Gene types:", 
+                        choices = gene_types, 
+                        multiple = T, 
+                        selected = "protein_coding"),
+            checkboxInput(inputId = "parallelized", "Multi-thread execution?", FALSE)
         ),
 
         # Show a plot of the generated distribution

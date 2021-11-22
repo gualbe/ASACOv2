@@ -19,14 +19,15 @@ cluster <- function () {
   return(cl)
 }
 
-selgenes_file <- function (input_file, genetypes_filename = c("data/biomart_human_type.tsv", "data/biomart_celegans_type.tsv"), genetypes_filter = c("protein_coding")) {
+selgenes_file <- function (input_file, genetypes_filename = c("data/biomart_human_type.tsv", "data/biomart_celegans_type.tsv"), 
+                           genetypes_filter = c("protein_coding"), parallelized = T) {
   
   # Extract, transform and load gene fold changes from experiments.
   data = etl_experiments(input_file, genetypes_filename, genetypes_filter)
   xgene = data$xgene
   
   # Select genes by using all available methods.
-  res = selgenes(data, xgene)
+  res = selgenes(data, xgene, parallelized)
   
   # Write results into the output file.
   dir.create(dirname(sub("input", "output", input_file)))
@@ -36,6 +37,7 @@ selgenes_file <- function (input_file, genetypes_filename = c("data/biomart_huma
   fwrite(data.table(res$direct_scores), paste0(output_path_basename, "_selgenes_direct_scores.csv"), row.names = F, col.names = T)
   fwrite(data.table(res$inverse_scores), paste0(output_path_basename, "_selgenes_inverse_scores.csv"), row.names = F, col.names = T)
   fwrite(data.table(res$scores), paste0(output_path_basename, "_all_scores.csv"), row.names = F, col.names = T)
+  fwrite(data.table(type = genetypes_filter), paste0(output_path_basename, "_gene_types.csv"), row.names = F, col.names = T)
   
   return(res)
 }
@@ -65,7 +67,6 @@ etl_experiments <- function (filename, genetypes_filename, genetypes_filter) {
   # Filter genes with type "protein_coding".
   i = 1; ok = FALSE
   while (!ok & i <= length(genetypes_filename)) {
-    #browser()
     types = fread(genetypes_filename[i])
     types = types[, `Gene type`:=as.factor(`Gene type`)]
     coding_genenames = types[`Gene type` %in% genetypes_filter]$`Gene stable ID`  ## Gualberto 2021-11-21 (allowing any multiple gene types as filter)
@@ -138,8 +139,8 @@ mergeTwoResults <- cmpfun(function (basepath, gene1, gene2, outgene) {
   
 })
 
-selgenes <- function(data, xgene) {
-  res = selgenes_method_SFCS(data, xgene)
+selgenes <- function(data, xgene, parallelized = T) {
+  res = selgenes_method_SFCS(data, xgene, parallelized = parallelized)
   return(res)
 }
 
@@ -165,30 +166,27 @@ empiric_pvalue <- function (distr) {
   
 }
 
-selgenes_method_SFCS <- function(data_pack, xgene, method = "pvalue", sd_factor = 2) {
+selgenes_method_SFCS <- function(data_pack, xgene, method = "pvalue", sd_factor = 2, parallelized = T) {
   
   # Extract only the used variables from the data_pack.
   data = data_pack$genes2exp
   datat = data_pack$exp2genes
-
-  parallelized = F
   
   if (parallelized) {
-    # Assess the score for each gene.
-    step = ncol(datat) / 2
-    incProgress(0.3, detail = "(Calculating 1/3)")
+    # Assess the score for each gene (in parallel).
+    step = ceiling(ncol(datat) / 2)
+    incProgress(0.33, detail = "(Calculating 1/3)")
     score1 <- foreach(col=1:step, .combine=rbind) %dopar% {   ## dopar
       metric_SFCS(datat[,xgene,with=F], datat[,col,with=F])
     }
-    incProgress(0.5, detail = "(Calculating 2/3)")
+    incProgress(0.33, detail = "(Calculating 2/3)")
     score2 <- foreach(col=(step+1):ncol(datat), .combine=rbind) %dopar% {   ## dopar
       metric_SFCS(datat[,xgene,with=F], datat[,col,with=F])
     }
-    incProgress(0.8, detail = "(Calculating 3/3)")
-    
+    incProgress(0.33, detail = "(Calculating 3/3)")
     score = rbindlist(list(score1, score2))
   } else {
-    # Assess the score for each gene.
+    # Assess the score for each gene (serial).
     step = ceiling(ncol(datat) / 10)
     score <- foreach(col=1:ncol(datat), .combine=rbind) %do% {
       if (col %% step == 0)
@@ -196,7 +194,6 @@ selgenes_method_SFCS <- function(data_pack, xgene, method = "pvalue", sd_factor 
       metric_SFCS(datat[,xgene,with=F], datat[,col,with=F])
     }
   }
-  
   
   # Build the result table.
   ppv = 1 - pnorm(scale(score$p))
@@ -234,8 +231,11 @@ selgenes_method_SFCS <- function(data_pack, xgene, method = "pvalue", sd_factor 
   
 }
 
-readOutputs <- function (geneName, baseFolder = "output_genes") {
-  if (!file.exists(paste0(baseFolder, "/", geneName, "_all_scores.csv")))
+readOutputs <- function (geneName, geneTypes = "protein_coding", baseFolder = "output_genes") {
+  if (!file.exists(paste0(baseFolder, "/", geneName, "_all_scores.csv")) | !sameGeneTypes(geneName, geneTypes, baseFolder))
+    return(NULL)
+  
+  if (length(geneTypes) > 1 | geneTypes[1] != "protein_coding")
     return(NULL)
   
   res = list()
@@ -247,4 +247,9 @@ readOutputs <- function (geneName, baseFolder = "output_genes") {
   res$scores = fread(paste0(baseFolder, "/", geneName, "_all_scores.csv"))
   
   return(res)
+}
+
+sameGeneTypes <- function (geneName, geneTypes = "protein_coding", baseFolder = "output_genes") {
+  gt = fread(paste0(baseFolder, "/", geneName, "_gene_types.csv"))$type
+  return( identical(gt, geneTypes) )
 }

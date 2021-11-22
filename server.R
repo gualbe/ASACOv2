@@ -6,19 +6,22 @@ library(data.table)
 shinyServer(function(input, output) {
 
   candidates <- eventReactive(input$search, {
-    res = readOutputs(input$gene)
+    res = readOutputs(input$gene, geneTypes = input$geneTypes)
     if (is.null(res)) {
       filename = paste0("input_genes/", input$gene, ".tsv")
-      #cl = cluster()
+      if (input$parallelized)
+        cl = cluster()
       withProgress(message = 'Scoring candidates', value = 0, {
-        res = selgenes_file(filename)
+        res = selgenes_file(filename, genetypes_filter = input$geneTypes, 
+                            parallelized = input$parallelized)
       })
-      #stopCluster(cl)
+      if (input$parallelized)
+        stopCluster(cl)
     }
     res
   }, ignoreNULL = FALSE)
   
-  output$direct <- DT::renderDataTable({   # renderTable(
+  output$direct <- DT::renderDataTable({
     candidates()$direct_scores
   })
 
