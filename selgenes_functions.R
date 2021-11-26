@@ -232,11 +232,14 @@ selgenes_method_SFCS <- function(data_pack, xgene, method = "pvalue", sd_factor 
 }
 
 readOutputs <- function (geneName, geneTypes = "protein_coding", baseFolder = "output_genes") {
-  if (!file.exists(paste0(baseFolder, "/", geneName, "_all_scores.csv")) | !sameGeneTypes(geneName, geneTypes, baseFolder))
+  if (!file.exists(paste0(baseFolder, "/", geneName, "_all_scores.csv"))) 
     return(NULL)
-  
-  if (length(geneTypes) > 1 | geneTypes[1] != "protein_coding")
+
+  if (!sameGeneTypes(geneName, geneTypes, baseFolder))
     return(NULL)
+    
+  #if (length(geneTypes) > 1 | geneTypes[1] != "protein_coding")
+  #  return(NULL)
   
   res = list()
   
