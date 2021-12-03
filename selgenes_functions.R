@@ -141,6 +141,7 @@ mergeTwoResults <- cmpfun(function (basepath, gene1, gene2, outgene) {
 
 selgenes <- function(data, xgene, parallelized = T) {
   res = selgenes_method_SFCS(data, xgene, parallelized = parallelized)
+  # res2 = selgenes_additional   # AQUI SE AÑADEN NUEVAS METRICAS.
   return(res)
 }
 

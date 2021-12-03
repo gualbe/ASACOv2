@@ -5,9 +5,9 @@ account: gualbe
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 5112159
-bundleId: 5281259
+bundleId: 5295687
 url: https://gualbe.shinyapps.io/ASACOv2/
-when: 1637603553.51416
-lastSyncTime: 1637603553.51417
+when: 1637920718.09253
+lastSyncTime: 1637920718.09255
 asMultiple: FALSE
 asStatic: FALSE
