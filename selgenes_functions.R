@@ -20,14 +20,14 @@ cluster <- function () {
 }
 
 selgenes_file <- function (input_file, genetypes_filename = c("data/biomart_human_type.tsv", "data/biomart_celegans_type.tsv"), 
-                           genetypes_filter = c("protein_coding"), parallelized = T) {
+                           genetypes_filter = c("protein_coding"), parallelized = T, pvalue = 0.05) {
   
   # Extract, transform and load gene fold changes from experiments.
   data = etl_experiments(input_file, genetypes_filename, genetypes_filter)
   xgene = data$xgene
   
   # Select genes by using all available methods.
-  res = selgenes(data, xgene, parallelized)
+  res = selgenes(data, xgene, parallelized, pvalue = pvalue)
   
   # Write results into the output file.
   dir.create(dirname(sub("input", "output", input_file)))
@@ -82,7 +82,7 @@ etl_experiments <- function (filename, genetypes_filename, genetypes_filter) {
   genes = unique(data[,.(Gene)])
   
   # Averaging fold change values for repeated genes.
-  data = data[, lapply(.SD, mean), by=Gene, .SDcols = 3:ncol(data)]
+  data = data[, lapply(.SD, mean), by=Gene, .SDcols = 2:ncol(data)]  # Antes 3:ncol (Gualbe 2022-04-08)
   
   # Transpose the data table (experiments -x- genes).
   datat = as.data.table(t(data[,-1]))
@@ -139,8 +139,8 @@ mergeTwoResults <- cmpfun(function (basepath, gene1, gene2, outgene) {
   
 })
 
-selgenes <- function(data, xgene, parallelized = T) {
-  res = selgenes_method_SFCS(data, xgene, parallelized = parallelized)
+selgenes <- function(data, xgene, parallelized = T, pvalue = 0.05) {
+  res = selgenes_method_SFCS(data, xgene, parallelized = parallelized, pvalue = pvalue)
   # res2 = selgenes_additional   # AQUI SE AÑADEN NUEVAS METRICAS.
   return(res)
 }
@@ -167,7 +167,7 @@ empiric_pvalue <- function (distr) {
   
 }
 
-selgenes_method_SFCS <- function(data_pack, xgene, method = "pvalue", sd_factor = 2, parallelized = T) {
+selgenes_method_SFCS <- function(data_pack, xgene, method = "pvalue", sd_factor = 2, parallelized = T, pvalue = 0.05) {
   
   # Extract only the used variables from the data_pack.
   data = data_pack$genes2exp
@@ -208,11 +208,11 @@ selgenes_method_SFCS <- function(data_pack, xgene, method = "pvalue", sd_factor 
   # Selection of relevant related genes to xgene.
   if (method == "pvalue") {
     # (by p-value).
-    sel_genes_direct = genes_table[ppv <= 0.05]   #  & ppenpv <= 0.05
+    sel_genes_direct = genes_table[ppv <= pvalue]   #  & ppenpv <= 0.05
     q3_ppen = quantile(sel_genes_direct$score.ppen)[4]
     sel_genes_direct = sel_genes_direct[score.ppen < q3_ppen]
     
-    sel_genes_inverse = genes_table[npv <= 0.05]   #  & npenpv <= 0.05
+    sel_genes_inverse = genes_table[npv <= pvalue]   #  & npenpv <= 0.05
     q3_npen = quantile(sel_genes_inverse$score.npen)[4]
     sel_genes_inverse = sel_genes_inverse[score.npen < q3_npen]
   } else {

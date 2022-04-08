@@ -13,7 +13,7 @@ shinyServer(function(input, output) {
         cl = cluster()
       withProgress(message = 'Scoring candidates', value = 0, {
         res = selgenes_file(filename, genetypes_filter = input$geneTypes, 
-                            parallelized = input$parallelized)
+                            parallelized = input$parallelized, pvalue = input$pvalue)
       })
       if (input$parallelized)
         stopCluster(cl)
